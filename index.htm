@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Explorer Map</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
+
+    <style>
+        :root {
+            --primary:     #010778;
+            --primary-mid: #010778;
+            --primary-drk: #010778;
+            --primary-bg:  #7ec8fc;
+            --primary-dim: #7ec8fc;
+            --bg-page:   #f3f5ee;
+            --bg-panel:  #ffffff;
+            --bg-card:   #f7f9f3;
+            --bg-hover:  #eef5e0;
+            --border:    #7ec8fc;
+            --border-md: #7ec8fc;
+            --text-pri:  #7ec8fc;
+            --text-sec:  #7ec8fc;
+            --text-dim:  #7ec8fc;
+            --text-mute: #7ec8fc;
+            --red:       #d94f4f;
+            --sidebar-w: 316px;
+
+            /* Engagement type tag colours */
+            --tag-project-bg:   #e8f5d0;
+            --tag-project-bdr:  #77a12e;
+            --tag-project-txt:  #3a6010;
+
+            --tag-om-bg:        #fde8e8;
+            --tag-om-bdr:       #d94f4f;
+            --tag-om-txt:       #a01818;
+
+            --tag-study-bg:     #ddeeff;
+            --tag-study-bdr:    #3B9DD4;
+            --tag-study-txt:    #1a5f8a;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; overflow: hidden; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg-page);
+            color: var(--text-pri);
+            display: flex;
+        }
+
+        /* ── ENGAGEMENT TAG STYLES ─────────────────────────── */
+        .eng-tag {
+            display: inline-block;
+            padding: 2px 9px;
+            border-radius: 20px;
+            font-size: 10.5px;
+            font-weight: 600;
+            font-family: 'DM Sans', sans-serif;
+            letter-spacing: 0.2px;
+            border: 1.5px solid;
+            white-space: nowrap;
+        }
+
+        .eng-tag.project {
+            background: var(--tag-project-bg);
+            border-color: var(--tag-project-bdr);
+            color: var(--tag-project-txt);
+        }
+
+        .eng-tag.om {
+            background: var(--tag-om-bg);
+            border-color: var(--tag-om-bdr);
+            color: var(--tag-om-txt);
+        }
+
+        .eng-tag.study {
+            background: var(--tag-study-bg);
+            border-color: var(--tag-study-bdr);
+            color: var(--tag-study-txt);
+        }
+
+        .eng-tag.unknown {
+            background: #f0f0f0;
+            border-color: #aaa;
+            color: #555;
+        }
+
+        /* ── SIDEBAR ── */
+        #sidebar {
+            width: var(--sidebar-w);
+            min-width: var(--sidebar-w);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-panel);
+            border-right: 1.5px solid var(--border);
+            box-shadow: 2px 0 18px rgba(80,107,30,0.09);
+            z-index: 500;
+            overflow: hidden;
+        }
+
+        #sidebar-header {
+            padding: 20px 20px 17px;
+            background: linear-gradient(145deg, var(--primary-drk) 0%, var(--primary-mid) 100%);
+            color: #fff;
+            flex-shrink: 0;
+        }
+
+        .hdr-eye {
+            font-family: 'DM Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+            opacity: 0.65;
+            margin-bottom: 4px;
+        }
+
+        .hdr-title { font-size: 19px; font-weight: 700; letter-spacing: -0.2px; }
+        .hdr-sub   { font-size: 11.5px; opacity: 0.6; margin-top: 2px; }
+
+        .result-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 11px;
+            background: rgba(255,255,255,0.14);
+            border: 1px solid rgba(255,255,255,0.22);
+            border-radius: 20px;
+            padding: 4px 12px;
+        }
+
+        .result-pill .num { font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 500; }
+        .result-pill .lbl { font-size: 11px; opacity: 0.8; }
+
+        /* ── ENGAGEMENT LEGEND ─────────────────────────────── */
+        #eng-legend {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            padding: 8px 14px;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-card);
+            flex-shrink: 0;
+        }
+
+        .legend-lbl {
+            font-family: 'DM Mono', monospace;
+            font-size: 8.5px;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: var(--text-mute);
+            margin-right: 2px;
+        }
+
+        /* Search */
+        #search-wrap {
+            padding: 13px 14px 9px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .search-row {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            background: var(--bg-card);
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            padding: 0 10px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .search-row:focus-within {
+            border-color: var(--primary-mid);
+            box-shadow: 0 0 0 3px var(--primary-dim);
+        }
+
+        .si { font-size: 14px; opacity: 0.35; flex-shrink: 0; }
+
+        #searchBox {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            padding: 9px 0;
+            font-size: 12.5px;
+            font-family: 'DM Sans', sans-serif;
+            color: var(--text-pri);
+        }
+
+        #searchBox::placeholder { color: var(--text-mute); }
+
+        #clearSearch {
+            background: none; border: none;
+            color: var(--text-mute); cursor: pointer;
+            font-size: 14px; line-height: 1; padding: 0;
+            display: none; transition: color 0.15s;
+        }
+
+        #clearSearch:hover { color: var(--red); }
+
+        .scope-tags { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
+
+        .stag {
+            font-size: 9.5px;
+            font-family: 'DM Mono', monospace;
+            padding: 2px 7px;
+            border-radius: 9px;
+            background: var(--primary-bg);
+            color: var(--primary-drk);
+            border: 1px solid var(--border-md);
+        }
+
+        /* Chips */
+        #chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            padding: 7px 14px 0;
+            min-height: 0;
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: var(--primary-bg);
+            border: 1px solid var(--border-md);
+            border-radius: 10px;
+            padding: 2px 8px 2px 7px;
+            font-size: 10.5px;
+            color: var(--primary-drk);
+            font-weight: 500;
+            max-width: 140px;
+        }
+
+        .chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cdot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+        .cx {
+            cursor: pointer; opacity: 0.45;
+            font-size: 11px; line-height: 1;
+            margin-left: 1px; transition: opacity 0.15s;
+            flex-shrink: 0;
+        }
+
+        .cx:hover { opacity: 1; }
+
+        /* Filter scroll */
+        #filter-body {
+            flex: 1;
+            overflow-y: auto;
+            padding-bottom: 8px;
+        }
+
+        #filter-body::-webkit-scrollbar { width: 3px; }
+        #filter-body::-webkit-scrollbar-thumb { background: var(--border-md); border-radius: 3px; }
+
+        .fsec { padding: 12px 14px 5px; }
+
+        .fsec-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .fsec-label {
+            font-family: 'DM Mono', monospace;
+            font-size: 9.5px;
+            letter-spacing: 1.8px;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            font-weight: 500;
+        }
+
+        .fsec-acts { display: flex; gap: 5px; align-items: center; }
+
+        .fsbtn {
+            font-size: 10.5px;
+            color: var(--primary-mid);
+            background: none; border: none; cursor: pointer;
+            padding: 0; font-family: 'DM Sans', sans-serif;
+            font-weight: 600; transition: color 0.15s;
+        }
+
+        .fsbtn:hover { color: var(--primary-drk); }
+        .fsep { color: var(--border); font-size: 11px; }
+
+        hr.div { border: none; border-top: 1px solid var(--border); margin: 5px 14px; }
+
+        .region-block { margin-bottom: 3px; }
+
+        .region-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            border-radius: 7px;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.12s;
+        }
+
+        .region-row:hover { background: var(--bg-hover); }
+        .region-row.active { background: var(--primary-bg); }
+
+        .country-list { padding-left: 16px; display: block; }
+
+        .country-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.12s;
+        }
+
+        .country-row:hover { background: var(--bg-hover); }
+        .country-row.active { background: var(--primary-bg); }
+
+        .cbox {
+            width: 15px; height: 15px;
+            border: 1.5px solid var(--border-md);
+            border-radius: 3.5px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.13s;
+            background: #fff;
+            position: relative;
+        }
+
+        .cbox.checked { background: var(--primary); border-color: var(--primary-mid); }
+        .cbox.indeterminate { background: var(--primary-bg); border-color: var(--primary-mid); }
+
+        .cbox.checked::after {
+            content: '';
+            width: 4px; height: 7px;
+            border: 2px solid #fff;
+            border-top: none; border-left: none;
+            transform: rotate(45deg) translateY(-1px);
+        }
+
+        .cbox.indeterminate::after {
+            content: '';
+            width: 7px; height: 2px;
+            background: var(--primary-mid);
+            border-radius: 1px;
+        }
+
+        .rdot {
+            width: 10px; height: 10px;
+            border-radius: 50%; flex-shrink: 0;
+            border: 1.5px solid rgba(0,0,0,0.1);
+        }
+
+        .row-name {
+            flex: 1;
+            font-size: 12.5px;
+            color: var(--text-sec);
+            transition: color 0.12s;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .region-row.active .row-name,
+        .country-row.active .row-name { color: var(--primary-drk); font-weight: 600; }
+
+        .region-row .row-name { font-weight: 500; font-size: 13px; }
+
+        .rbadge {
+            font-family: 'DM Mono', monospace;
+            font-size: 9.5px;
+            color: var(--text-dim);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            padding: 1px 6px;
+            min-width: 20px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .region-row.active .rbadge,
+        .country-row.active .rbadge { background: var(--primary-mid); color: #fff; border-color: var(--primary-mid); }
+
+        .toggle-arrow {
+            font-size: 10px;
+            color: var(--text-mute);
+            transition: transform 0.2s;
+            flex-shrink: 0;
+            line-height: 1;
+            margin-left: -2px;
+        }
+
+        .toggle-arrow.open { transform: rotate(90deg); }
+
+        .com-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            border-radius: 7px;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.12s;
+        }
+
+        .com-item:hover { background: var(--bg-hover); }
+        .com-item.active { background: var(--primary-bg); }
+        .com-item.active .row-name { color: var(--primary-drk); font-weight: 600; }
+        .com-item.active .rbadge { background: var(--primary-mid); color: #fff; border-color: var(--primary-mid); }
+
+        /* Engagement filter items */
+        .eng-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            border-radius: 7px;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.12s;
+        }
+
+        .eng-item:hover  { background: var(--bg-hover); }
+        .eng-item.active { background: var(--primary-bg); }
+        .eng-item.active .row-name { color: var(--primary-drk); font-weight: 600; }
+        .eng-item.active .rbadge  { background: var(--primary-mid); color: #fff; border-color: var(--primary-mid); }
+
+        /* Footer */
+        #sidebar-footer {
+            padding: 11px 14px;
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+            background: var(--bg-card);
+        }
+
+        #resetBtn {
+            width: 100%;
+            padding: 9px 14px;
+            background: transparent;
+            border: 1.5px solid var(--border-md);
+            border-radius: 8px;
+            color: var(--text-sec);
+            font-size: 13px;
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            transition: all 0.2s;
+        }
+
+        #resetBtn:hover { border-color: var(--red); color: var(--red); background: #d94f4f0c; }
+
+        /* Map */
+        #map-wrap { flex: 1; height: 100vh; position: relative; }
+        #map { width: 100%; height: 100%; background: #062035; }
+        .leaflet-container { background: #062035 !important; }
+
+        .leaflet-popup-content-wrapper {
+            border-radius: 10px !important;
+            box-shadow: 0 8px 30px rgba(80,107,30,0.18) !important;
+            border: 1.5px solid var(--border) !important;
+            padding: 0 !important;
+        }
+
+        .leaflet-popup-content { margin: 0 !important; }
+        .leaflet-popup-tip-container { display: none; }
+
+        #no-results {
+            position: absolute;
+            bottom: 22px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 600;
+            background: var(--bg-panel);
+            border: 1.5px solid var(--border-md);
+            border-radius: 8px;
+            padding: 9px 18px;
+            font-size: 12.5px;
+            color: var(--text-sec);
+            display: none;
+            white-space: nowrap;
+            box-shadow: 0 4px 20px rgba(80,107,30,0.13);
+        }
+
+        .leaflet-control-attribution { font-size: 10px !important; background: rgba(255,255,255,0.75) !important; }
+    </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════ SIDEBAR ═══════════════════════════ -->
+<div id="sidebar">
+
+    <div id="sidebar-header">
+        <div class="hdr-eye">CCIC</div>
+        <div class="hdr-title">Project Explorer</div>
+        <div class="result-pill">
+            <span class="num" id="count">0</span>
+            <span class="lbl">visible projects</span>
+        </div>
+    </div>
+
+    <!-- Engagement type legend -->
+    <div id="eng-legend">
+        <span class="legend-lbl">Type:</span>
+        <span class="eng-tag project">Project</span>
+        <span class="eng-tag om">O&M</span>
+        <span class="eng-tag study">Study</span>
+    </div>
+
+    <!-- Search -->
+    <div id="search-wrap">
+        <div class="search-row">
+            <span class="si">⌕</span>
+            <input type="text" id="searchBox" placeholder="Search project, commodity or region…" autocomplete="off" />
+            <button id="clearSearch" title="Clear">✕</button>
+        </div>
+        <div class="scope-tags">
+            <span class="stag">Mine</span>
+            <span class="stag">Project</span>
+            <span class="stag">Type</span>
+            <span class="stag">Commodity</span>
+            <span class="stag">Region</span>
+            <span class="stag">Country</span>
+        </div>
+    </div>
+
+    <!-- Active filter chips -->
+    <div id="chip-row"></div>
+
+    <!-- Filter scroll -->
+    <div id="filter-body">
+
+        <!-- ENGAGEMENT TYPE FILTER -->
+        <div class="fsec">
+            <div class="fsec-head">
+                <span class="fsec-label">Engagement Type</span>
+                <div class="fsec-acts">
+                    <button class="fsbtn" onclick="selectAllEng()">All</button>
+                    <span class="fsep">|</span>
+                    <button class="fsbtn" onclick="deselectAllEng()">None</button>
+                </div>
+            </div>
+            <div id="engagementFilters"></div>
+        </div>
+
+        <hr class="div" />
+
+        <!-- REGIONS -->
+        <div class="fsec">
+            <div class="fsec-head">
+                <span class="fsec-label">Region</span>
+                <div class="fsec-acts">
+                    <button class="fsbtn" onclick="selectAllRegions()">All</button>
+                    <span class="fsep">|</span>
+                    <button class="fsbtn" onclick="deselectAllRegions()">None</button>
+                </div>
+            </div>
+            <div id="regionFilters"></div>
+        </div>
+
+        <hr class="div" />
+
+        <!-- COMMODITIES -->
+        <div class="fsec">
+            <div class="fsec-head">
+                <span class="fsec-label">Commodity</span>
+                <div class="fsec-acts">
+                    <button class="fsbtn" onclick="selectAllCom()">All</button>
+                    <span class="fsep">|</span>
+                    <button class="fsbtn" onclick="deselectAllCom()">None</button>
+                </div>
+            </div>
+            <div id="commodityFilters"></div>
+        </div>
+
+    </div>
+
+    <div id="sidebar-footer">
+        <button id="resetBtn" onclick="resetFilters()">↺ &nbsp;Reset All Filters</button>
+    </div>
+</div>
+
+<!-- ═══════════════════════════ MAP ════════════════════════════════ -->
+<div id="map-wrap">
+    <div id="map"></div>
+    <div id="no-results">⚠ No projects match current filters</div>
+</div>
+
+<script>
+
+// ── Google Sheets CSV URL ─────────────────────────────────────────
+const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSQwf_CeFOnCJi4b_yDsI5W0r5GOnBRWfxE1M0HGs8RKfV9BJpMh3CTsoH2QwktK_ucniQwMsd_ygX0/pub?gid=0&single=true&output=csv";
+
+let ALL_PROJECTS = [];
+let lastCSVText  = null;
+
+/* ═══════════════════════════════════════════════════════════════════
+   ENGAGEMENT TYPE HELPERS
+═══════════════════════════════════════════════════════════════════ */
+function normaliseEngagement(raw) {
+    if (!raw) return "project";
+
+    // Handle arrays (multi-value engagement types)
+    const v = Array.isArray(raw) ? raw.join(" ").toLowerCase() : raw.toLowerCase();
+
+    if (v.includes("o&m") || v.includes("o & m") || v.includes("operations") || v.includes("maintenance"))
+        return "om";
+
+    if (v.includes("study") || v.includes("feasibility") || v.includes("scoping"))
+        return "study";
+
+    if (v.includes("project") || v.includes("epcm") || v.includes("epc"))
+        return "project";
+
+    return "project";
+}
+
+const ENG_CONFIG = {
+    project: { label: "Project",  cssClass: "project", color: "#77a12e" },
+    om:      { label: "O&M",      cssClass: "om",      color: "#d94f4f" },
+    study:   { label: "Study",    cssClass: "study",   color: "#3B9DD4" },
+};
+
+function engConfig(raw) {
+    return ENG_CONFIG[normaliseEngagement(raw)] || ENG_CONFIG.project;
+}
+
+function engTagHTML(raw) {
+    if (Array.isArray(raw)) {
+        return raw.map(r => {
+            const cfg = engConfig(r);
+            return `<span class="eng-tag ${cfg.cssClass}">${cfg.label}</span>`;
+        }).join(" ");
+    } else {
+        const cfg = engConfig(raw);
+        return `<span class="eng-tag ${cfg.cssClass}">${cfg.label}</span>`;
+    }
+}
+
+// ── CSV Parser (handles quoted fields with commas) ────────────────
+function parseCSV(csvText) {
+
+    function splitCSVLine(line) {
+        const values = [];
+        let current = "";
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+
+            if (char === '"') {
+                if (inQuotes && line[i + 1] === '"') {
+                    current += '"';
+                    i++;
+                } else {
+                    inQuotes = !inQuotes;
+                }
+            }
+            else if (char === ',' && !inQuotes) {
+                values.push(current.trim());
+                current = "";
+            }
+            else {
+                current += char;
+            }
+        }
+
+        values.push(current.trim());
+        return values;
+    }
+
+    const lines = csvText.trim().split(/\r?\n/);
+    const headers = splitCSVLine(lines[0]).map(h => h.trim().toLowerCase());
+
+    const results = [];
+
+    for (let i = 1; i < lines.length; i++) {
+        const values = splitCSVLine(lines[i]);
+        const row = {};
+
+        headers.forEach((h, index) => {
+            row[h] = values[index] || "";
+        });
+
+        if (!isNaN(parseFloat(row.lat)) && !isNaN(parseFloat(row.lng))) {
+
+            const mine_name       = row['mine_name']       || row['mine name']       || "";
+            const project_name    = row['project_name']    || row['project name']    || "";
+            const engagement_type = (row['engagement_type'] || row['engagement type'] || "Project")
+                                        .split(',')
+                                        .map(e => e.trim());
+            const commodity       = row['commodity'] || "Other";
+            const country         = row['country']   || "Other";
+            const region          = row['region']    || "Other";
+
+            // ── SEARCH INDEX ──────────────────────────────────────
+            // Pre-built lowercase string covering every searchable field.
+            // Searching against this single string is fast and covers all
+            // combinations: "study ghana gold", "copper zambia", etc.
+            const search_index = (
+                mine_name        + " " +
+                project_name     + " " +
+                commodity        + " " +
+                country          + " " +
+                region           + " " +
+                engagement_type.join(" ")
+            ).toLowerCase();
+            // ─────────────────────────────────────────────────────
+
+            results.push({
+                mine_name,
+                project_name,
+                engagement_type,
+                commodity,
+                country,
+                region,
+                lat: parseFloat(row.lat),
+                lng: parseFloat(row.lng),
+                search_index,           // ← attached to every project object
+            });
+        }
+    }
+
+    return results;
+}
+
+// ── Fetch + auto-refresh every 30 s ──────────────────────────────
+async function refreshData() {
+    try {
+        const res     = await fetch(`${SHEET_CSV_URL}&cachebust=${Date.now()}`);
+        const csvText = await res.text();
+        if (csvText === lastCSVText) return;
+        lastCSVText = csvText;
+
+        ALL_PROJECTS = parseCSV(csvText);
+
+        buildEngagementFilters();
+        buildRegionFilters();
+        buildCommodityFilters();
+        applyFilters();
+
+        console.log(`Map refreshed — ${ALL_PROJECTS.length} projects at ${new Date().toLocaleTimeString()}`);
+    } catch (err) {
+        console.error("Failed to load sheet data:", err);
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   REGION TREE
+═══════════════════════════════════════════════════════════════════ */
+const REGION_TREE = [
+    { id:"EMEA",  label:"EMEA",  sublabel:"Europe, Middle East & Africa", color:"#506b1e",
+      countries:["DRC","Egypt","Ghana","Guinea","Ivory Coast","Mozambique","Namibia","Nigeria","Senegal","South Africa","Tanzania","UAE","Zambia","Zimbabwe","Botswana","Lesotho","Liberia","Saudi Arabia","Ethiopia"] },
+    { id:"NAMER", label:"NAMER", sublabel:"North America",  color:"#E8A000",
+      countries:["Canada","Greenland","Mexico","USA"] },
+    { id:"SAMER", label:"SAMER", sublabel:"South America",  color:"#E05090",
+      countries:["Argentina","Bolivia","Brazil","Chile","Colombia","Ecuador","Guyana","Paraguay","Peru","Suriname","Uruguay","Venezuela"] },
+    { id:"APAC",  label:"APAC",  sublabel:"Asia Pacific",   color:"#3B9DD4",
+      countries:["Australia","Cambodia","China","India","Indonesia","Japan","Kazakhstan","Mongolia","New Zealand","Papua New Guinea","Philippines","South Korea","Vietnam"] },
+    { id:"FSU",   label:"FSU",   sublabel:"Former Soviet Union", color:"#9B6DB5",
+      countries:["Armenia","Azerbaijan","Georgia","Kazakhstan","Kyrgyzstan","Russia","Tajikistan","Turkmenistan","Ukraine","Uzbekistan"] },
+];
+
+/* ═══════════════════════════════════════════════════════════════════
+   COMMODITY LIST
+═══════════════════════════════════════════════════════════════════ */
+const COMMODITY_LIST = [
+    "Bauxite","Chrome","Chromite","Coal","Copper","Diamond","Gold",
+    "Industrial","Iron Ore","Manganese","Marine","Phosphate","Platinum","Potash","Tin","Zinc"
+];
+
+/* ═══════════════════════════════════════════════════════════════════
+   COLOUR MAPS
+═══════════════════════════════════════════════════════════════════ */
+const COM_COLORS = {
+    Gold:"#E8A000", Coal:"#6B7B8A", Zinc:"#3B9DD4", Manganese:"#B07540",
+    Platinum:"#8AAABF", Chrome:"#3DAA55", Chromite:"#2A7A3A", Tin:"#9B6DB5",
+    Bauxite:"#E07030", Potash:"#E05050", Marine:"#30B8C8", Industrial:"#77a12e",
+    Copper:"#B87333", Diamond:"#89CFF0", "Iron Ore":"#C0392B", Phosphate:"#F4D03F",
+};
+
+const REG_COLORS = {
+    EMEA:"#506b1e", NAMER:"#E8A000", SAMER:"#E05090", APAC:"#3B9DD4", FSU:"#9B6DB5",
+};
+
+const getComColor = c => COM_COLORS[c] || '#9ccb48';
+const getRegColor = r => REG_COLORS[r] || '#9ccb48';
+
+/* ═══════════════════════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════════════════════ */
+const selCountries      = new Set();
+const selCommodities    = new Set();
+const selEngagementKeys = new Set();
+
+/* ═══════════════════════════════════════════════════════════════════
+   MAP INIT
+═══════════════════════════════════════════════════════════════════ */
+const map = L.map('map', {
+    zoomControl:        true,
+    worldCopyJump:      true,
+    zoomSnap:           0.25,
+    minZoom:            3,
+    maxZoom:            18,
+    maxBounds:          [[-85, -180], [85, 180]],
+    maxBoundsViscosity: 1.0,
+}).setView([10, 10], 4.5);
+
+L.tileLayer(
+    'https://api.maptiler.com/maps/hybrid-v4/{z}/{x}/{y}.jpg?key=vcD1LXlYwgGvAihPT8oQ',
+    {
+        attribution: '<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright/" target="_blank">&copy; OpenStreetMap contributors</a>',
+        crossOrigin: true, tileSize: 512, zoomOffset: -1, noWrap: true,
+        bounds: [[-85,-180],[85,180]]
+    }
+).addTo(map);
+
+/* ── Regional GeoJSON overlay ── */
+const REGION_FILL = { EMEA:'#1a6b6b', NAMER:'#b85c1a', SAMER:'#7a2a4a', APAC:'#1e3d6b', FSU:'#5c3d7a' };
+
+const COUNTRY_REGION = {
+    ZAF:'EMEA',COD:'EMEA',GIN:'EMEA',EGY:'EMEA',GHA:'EMEA',CIV:'EMEA',MOZ:'EMEA',NAM:'EMEA',NGA:'EMEA',
+    SEN:'EMEA',TZA:'EMEA',ARE:'EMEA',ZMB:'EMEA',ZWE:'EMEA',AGO:'EMEA',CMR:'EMEA',ETH:'EMEA',KEN:'EMEA',
+    MAR:'EMEA',MLI:'EMEA',BFA:'EMEA',GBR:'EMEA',FRA:'EMEA',DEU:'EMEA',ESP:'EMEA',ITA:'EMEA',POL:'EMEA',
+    SWE:'EMEA',NOR:'EMEA',FIN:'EMEA',TUR:'EMEA',SAU:'EMEA',IRN:'EMEA',IRQ:'EMEA',ISR:'EMEA',JOR:'EMEA',
+    BWA:'EMEA',LSO:'EMEA',LBR:'EMEA',
+    USA:'NAMER',CAN:'NAMER',MEX:'NAMER',GRL:'NAMER',
+    PER:'SAMER',CHL:'SAMER',BRA:'SAMER',COL:'SAMER',ARG:'SAMER',BOL:'SAMER',ECU:'SAMER',GUY:'SAMER',
+    PRY:'SAMER',SUR:'SAMER',URY:'SAMER',VEN:'SAMER',
+    AUS:'APAC',CHN:'APAC',IND:'APAC',IDN:'APAC',JPN:'APAC',KAZ:'APAC',MNG:'APAC',NZL:'APAC',PNG:'APAC',
+    PHL:'APAC',KOR:'APAC',VNM:'APAC',KHM:'APAC',MMR:'APAC',THA:'APAC',MYS:'APAC',SGP:'APAC',PAK:'APAC',BGD:'APAC',
+    RUS:'FSU',UKR:'FSU',ARM:'FSU',AZE:'FSU',GEO:'FSU',KGZ:'FSU',TJK:'FSU',TKM:'FSU',UZB:'FSU',BLR:'FSU',MDA:'FSU',
+};
+
+fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson')
+    .then(r => r.json())
+    .then(data => {
+        L.geoJSON(data, {
+            style: feature => {
+                const iso    = feature.properties.ISO_A3 || feature.properties.iso_a3 || '';
+                const region = COUNTRY_REGION[iso];
+                const fill   = region ? REGION_FILL[region] : null;
+                return { fillColor: fill||'transparent', fillOpacity: fill?0.25:0, color: fill?'rgba(255,255,255,0.35)':'transparent', weight: fill?0.8:0 };
+            },
+            interactive: false, noWrap: true,
+        }).addTo(map);
+    });
+
+const markerGroup = L.layerGroup().addTo(map);
+
+/* ═══════════════════════════════════════════════════════════════════
+   MARKERS
+═══════════════════════════════════════════════════════════════════ */
+function createMarkerIcon(comColor, engRaw) {
+    const cfg = engConfig(engRaw);
+    const badgeColor = cfg.color;
+
+    return L.divIcon({
+        className: '',
+        html: `
+        <div style="
+            width:26px; height:34px;
+            display:flex; align-items:flex-start; justify-content:center;
+            cursor:pointer;
+            filter: drop-shadow(0 3px 7px rgba(0,0,0,0.55));
+        ">
+            <svg width="26" height="34" viewBox="0 0 26 38" xmlns="http://www.w3.org/2000/svg">
+                <path d="M13 1C7.2 1 2.5 5.7 2.5 11.5C2.5 20.5 13 37 13 37C13 37 23.5 20.5 23.5 11.5C23.5 5.7 18.8 1 13 1Z"
+                      fill="${comColor}"
+                      stroke="rgba(255,255,255,0.9)"
+                      stroke-width="1.8"/>
+                <circle cx="13" cy="11.5" r="5.5" fill="white" opacity="0.95"/>
+                <circle cx="13" cy="11.5" r="3.2" fill="${badgeColor}"/>
+            </svg>
+        </div>`,
+        iconSize:   [26, 34],
+        iconAnchor: [13, 34],
+        popupAnchor:[0, -34],
+    });
+}
+
+function renderMarkers(projects) {
+    markerGroup.clearLayers();
+    document.getElementById('count').textContent = projects.length;
+    document.getElementById('no-results').style.display = projects.length === 0 ? 'block' : 'none';
+
+    projects.forEach(p => {
+        const comCol = getComColor(p.commodity);
+        const marker = L.marker([p.lat, p.lng], { icon: createMarkerIcon(comCol, p.engagement_type) });
+
+        marker.bindPopup(buildPopup(p, comCol), { maxWidth: 260, className: 'custom-popup' });
+
+        marker.bindTooltip(p.mine_name || p.project_name || "Unknown", {
+            direction: "top", offset: [0, -32], opacity: 0.92,
+        });
+
+        markerGroup.addLayer(marker);
+    });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   POPUP
+═══════════════════════════════════════════════════════════════════ */
+function buildPopup(p, comCol) {
+
+    const tagStyles = {
+        project: `background:#e8f5d0; border:1.5px solid #77a12e; color:#3a6010;`,
+        om:      `background:#fde8e8; border:1.5px solid #d94f4f; color:#a01818;`,
+        study:   `background:#ddeeff; border:1.5px solid #3B9DD4; color:#1a5f8a;`,
+    };
+
+    const engTypes = Array.isArray(p.engagement_type) ? p.engagement_type : [p.engagement_type];
+    const engBadgesHTML = engTypes.map(raw => {
+        const cfg   = engConfig(raw);
+        const style = tagStyles[cfg.cssClass] || tagStyles.project;
+        return `<span style="
+            display:inline-block; padding:3px 10px; border-radius:20px;
+            font-size:11px; font-weight:600; letter-spacing:0.2px;
+            ${style}
+        ">${cfg.label}</span>`;
+    }).join("");
+
+    return `<div style="font-family:'DM Sans',Arial,sans-serif; background:#fff; border-radius:10px; padding:14px 16px; min-width:210px; max-width:260px;">
+
+        <div style="font-size:15px; font-weight:700; color:#1e2a0e; margin-bottom:5px; line-height:1.25;">
+            ${p.mine_name || "Unnamed Mine"}
+        </div>
+
+        <div style="display:flex; align-items:center; gap:5px; flex-wrap:wrap; margin-bottom:6px;">
+            ${engBadgesHTML}
+        </div>
+
+        <div style="font-size:12px; color:#435822; margin-bottom:10px;
+                    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+            ${p.project_name || ""}
+        </div>
+
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:5px;">
+            <span style="width:9px; height:9px; border-radius:50%; background:${comCol}; flex-shrink:0; border:1px solid rgba(0,0,0,0.1);"></span>
+            <span style="font-size:12px; color:#435822;">${p.commodity}</span>
+        </div>
+
+        <div style="font-size:12px; color:#8aaa52; margin-bottom:10px;">
+            <b style="color:#506b1e;">${p.region}</b> — ${p.country}
+        </div>
+
+        <div style="border-top:1px solid #dce8c4; padding-top:8px; font-size:10px; color:#b3c98a; font-family:'DM Mono',monospace; line-height:1.5;">
+            ${p.lat.toFixed(4)}° N &nbsp;/&nbsp; ${p.lng.toFixed(4)}° E
+        </div>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   BUILD ENGAGEMENT FILTERS
+═══════════════════════════════════════════════════════════════════ */
+function buildEngagementFilters() {
+    const wrap = document.getElementById('engagementFilters');
+    wrap.innerHTML = '';
+
+    const counts = { project: 0, om: 0, study: 0 };
+    ALL_PROJECTS.forEach(p => {
+        const key = normaliseEngagement(p.engagement_type);
+        counts[key] = (counts[key] || 0) + 1;
+    });
+
+    Object.entries(ENG_CONFIG).forEach(([key, cfg]) => {
+        const tagStyles = {
+            project: `background:#e8f5d0; border:1.5px solid #77a12e; color:#3a6010;`,
+            om:      `background:#fde8e8; border:1.5px solid #d94f4f; color:#a01818;`,
+            study:   `background:#ddeeff; border:1.5px solid #3B9DD4; color:#1a5f8a;`,
+        };
+
+        const item = document.createElement('div');
+        item.className    = 'eng-item';
+        item.dataset.ekey = key;
+        item.innerHTML    = `
+            <span class="cbox" id="engcbox-${key}"></span>
+            <span style="display:inline-block; padding:2px 9px; border-radius:20px; font-size:10.5px; font-weight:600; ${tagStyles[key]}">${cfg.label}</span>
+            <span class="rbadge" style="margin-left:auto;">${counts[key] || 0}</span>
+        `;
+        item.addEventListener('click', () => toggleEngagement(key));
+        wrap.appendChild(item);
+    });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   BUILD REGION FILTERS
+═══════════════════════════════════════════════════════════════════ */
+function buildRegionFilters() {
+    const wrap = document.getElementById('regionFilters');
+    wrap.innerHTML = '';
+
+    const countryCounts = {}, regionCounts = {};
+    ALL_PROJECTS.forEach(p => {
+        countryCounts[p.country] = (countryCounts[p.country] || 0) + 1;
+        regionCounts[p.region]   = (regionCounts[p.region]   || 0) + 1;
+    });
+
+    REGION_TREE.forEach(reg => {
+        const block  = document.createElement('div');
+        block.className    = 'region-block';
+        block.dataset.regionId = reg.id;
+
+        const regRow = document.createElement('div');
+        regRow.className    = 'region-row';
+        regRow.dataset.regionId = reg.id;
+        regRow.innerHTML = `
+            <span class="toggle-arrow" id="arrow-${reg.id}">▶</span>
+            <span class="cbox" id="rcbox-${reg.id}"></span>
+            <span class="rdot" style="background:${reg.color}"></span>
+            <span class="row-name" title="${reg.sublabel}">${reg.label}</span>
+            <span class="rbadge" id="rbadge-${reg.id}">${regionCounts[reg.id] || 0}</span>
+        `;
+
+        const countryList = document.createElement('div');
+        countryList.className = 'country-list';
+        countryList.id        = `clist-${reg.id}`;
+        countryList.style.display = 'none';
+
+        reg.countries.forEach(country => {
+            const cnt  = countryCounts[country] || 0;
+            const crow = document.createElement('div');
+            crow.className = 'country-row';
+            crow.dataset.country  = country;
+            crow.dataset.regionId = reg.id;
+            crow.innerHTML = `
+                <span class="cbox" id="ccbox-${country.replace(/\s/g,'_')}"></span>
+                <span class="row-name">${country}</span>
+                <span class="rbadge">${cnt}</span>
+            `;
+            crow.addEventListener('click', e => { e.stopPropagation(); toggleCountry(country, reg.id); });
+            countryList.appendChild(crow);
+        });
+
+        let arrowOpen = false;
+        regRow.addEventListener('click', () => {
+            arrowOpen = !arrowOpen;
+            countryList.style.display = arrowOpen ? 'block' : 'none';
+            document.getElementById(`arrow-${reg.id}`).classList.toggle('open', arrowOpen);
+        });
+
+        regRow.querySelector('.cbox').addEventListener('click', e => { e.stopPropagation(); toggleRegion(reg.id); });
+
+        block.appendChild(regRow);
+        block.appendChild(countryList);
+        wrap.appendChild(block);
+    });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   BUILD COMMODITY FILTERS
+═══════════════════════════════════════════════════════════════════ */
+function buildCommodityFilters() {
+    const wrap = document.getElementById('commodityFilters');
+    wrap.innerHTML = '';
+
+    const dataComs = [...new Set(ALL_PROJECTS.map(p => p.commodity).filter(Boolean))];
+    const allComs  = [...new Set([...COMMODITY_LIST, ...dataComs])].sort();
+
+    const counts = {};
+    ALL_PROJECTS.forEach(p => { counts[p.commodity] = (counts[p.commodity] || 0) + 1; });
+
+    allComs.forEach(com => {
+        const col  = getComColor(com);
+        const item = document.createElement('div');
+        item.className   = 'com-item';
+        item.dataset.com = com;
+        item.innerHTML   = `
+            <span class="cbox" id="comcbox-${com.replace(/\s/g,'_')}"></span>
+            <span class="rdot" style="background:${col}"></span>
+            <span class="row-name">${com}</span>
+            <span class="rbadge">${counts[com] || 0}</span>
+        `;
+        item.addEventListener('click', () => toggleCommodity(com));
+        wrap.appendChild(item);
+    });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   TOGGLE HELPERS
+═══════════════════════════════════════════════════════════════════ */
+function toggleCountry(country, regionId) {
+    if (selCountries.has(country)) { selCountries.delete(country); } else { selCountries.add(country); }
+    updateRegionCheckbox(regionId);
+    applyFilters();
+}
+
+function toggleRegion(regionId) {
+    const reg        = REGION_TREE.find(r => r.id === regionId);
+    if (!reg) return;
+    const allSelected = reg.countries.every(c => selCountries.has(c));
+    if (allSelected) { reg.countries.forEach(c => selCountries.delete(c)); }
+    else             { reg.countries.forEach(c => selCountries.add(c)); }
+    updateRegionCheckbox(regionId);
+    applyFilters();
+}
+
+function toggleCommodity(com) {
+    if (selCommodities.has(com)) { selCommodities.delete(com); } else { selCommodities.add(com); }
+    applyFilters();
+}
+
+function toggleEngagement(key) {
+    if (selEngagementKeys.has(key)) { selEngagementKeys.delete(key); } else { selEngagementKeys.add(key); }
+    applyFilters();
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   UPDATE CHECKBOXES
+═══════════════════════════════════════════════════════════════════ */
+function updateRegionCheckbox(regionId) {
+    const reg = REGION_TREE.find(r => r.id === regionId);
+    if (!reg) return;
+
+    const allSelected  = reg.countries.every(c => selCountries.has(c));
+    const someSelected = reg.countries.some(c  => selCountries.has(c));
+
+    const rcbox = document.getElementById(`rcbox-${regionId}`);
+    const rrow  = document.querySelector(`.region-row[data-region-id="${regionId}"]`);
+    if (!rcbox) return;
+
+    rcbox.className = 'cbox' + (allSelected ? ' checked' : someSelected ? ' indeterminate' : '');
+    rrow.classList.toggle('active', someSelected || allSelected);
+
+    reg.countries.forEach(country => {
+        const ccbox = document.getElementById(`ccbox-${country.replace(/\s/g,'_')}`);
+        const crow  = document.querySelector(`.country-row[data-country="${country}"]`);
+        if (ccbox) ccbox.className = 'cbox' + (selCountries.has(country) ? ' checked' : '');
+        if (crow)  crow.classList.toggle('active', selCountries.has(country));
+    });
+}
+
+function updateAllCheckboxes() {
+    REGION_TREE.forEach(reg => updateRegionCheckbox(reg.id));
+
+    document.querySelectorAll('.com-item').forEach(item => {
+        const com = item.dataset.com;
+        const el  = document.getElementById(`comcbox-${com.replace(/\s/g,'_')}`);
+        if (el)   el.className = 'cbox' + (selCommodities.has(com) ? ' checked' : '');
+        item.classList.toggle('active', selCommodities.has(com));
+    });
+
+    document.querySelectorAll('.eng-item').forEach(item => {
+        const key = item.dataset.ekey;
+        const el  = document.getElementById(`engcbox-${key}`);
+        if (el)   el.className = 'cbox' + (selEngagementKeys.has(key) ? ' checked' : '');
+        item.classList.toggle('active', selEngagementKeys.has(key));
+    });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   FILTER HELPERS  (search index + combined filter gate)
+═══════════════════════════════════════════════════════════════════ */
+
+/**
+ * Returns true if the project's pre-built search_index contains the
+ * search text.  Empty search always returns true.
+ */
+function projectMatchesSearch(project, searchText) {
+    if (!searchText) return true;
+    return project.search_index.includes(searchText);
+}
+
+/**
+ * Returns true if the project matches the currently selected
+ * engagement keys.  Empty selection (no filter active) always
+ * returns true.
+ */
+function projectMatchesEngagement(project, selectedEngagementKeys) {
+    if (selectedEngagementKeys.size === 0) return true;
+
+    // Builds the set of normalised types THIS project actually has
+    const types = Array.isArray(project.engagement_type)
+        ? project.engagement_type.map(normaliseEngagement)
+        : [normaliseEngagement(project.engagement_type)];
+
+    return [...selectedEngagementKeys].every(key => types.includes(key));
+}
+
+/**
+ * Returns true if the project matches the currently selected
+ * countries.  Empty selection (no filter active) always returns true.
+ */
+function projectMatchesCountry(project, selectedCountries) {
+    if (selectedCountries.size === 0) return true;
+    return selectedCountries.has(project.country);
+}
+
+/**
+ * Returns true if the project matches the currently selected
+ * commodities.  Empty selection (no filter active) always returns true.
+ */
+function projectMatchesCommodity(project, selectedCommodities) {
+    if (selectedCommodities.size === 0) return true;
+    return selectedCommodities.has(project.commodity);
+}
+
+/**
+ * Master filter function — combines ALL active filters together so
+ * that search + engagement + country + commodity all work in unison.
+ * e.g. search "gold" + filter "Study" + country "Ghana" all apply at once.
+ */
+function filterProjects(projects, searchText, selectedEngagement, selectedCountries, selectedCommodities) {
+    return projects.filter(p =>
+        projectMatchesSearch(p, searchText)         &&
+        projectMatchesEngagement(p, selectedEngagement)  &&
+        projectMatchesCountry(p, selectedCountries)      &&
+        projectMatchesCommodity(p, selectedCommodities)
+    );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   APPLY FILTERS  — single call-site that uses filterProjects()
+═══════════════════════════════════════════════════════════════════ */
+function applyFilters() {
+    // Normalise search text once here (lowercase, trimmed) so every
+    // helper receives a clean string rather than raw user input.
+    const searchText = document.getElementById('searchBox').value.toLowerCase().trim();
+
+    const filtered = filterProjects(
+        ALL_PROJECTS,
+        searchText,
+        selEngagementKeys,
+        selCountries,
+        selCommodities
+    );
+
+    renderMarkers(filtered);
+    updateAllCheckboxes();
+    updateChips();
+    fitToFiltered(filtered);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   CHIPS
+═══════════════════════════════════════════════════════════════════ */
+function updateChips() {
+    const row = document.getElementById('chip-row');
+    row.innerHTML = '';
+
+    selCountries.forEach(country => {
+        const reg = REGION_TREE.find(r => r.countries.includes(country));
+        const col = reg ? getRegColor(reg.id) : '#9ccb48';
+        row.insertAdjacentHTML('beforeend', `
+            <div class="chip">
+                <span class="cdot" style="background:${col}"></span>
+                <span>${country}</span>
+                <span class="cx" onclick="removeCountryChip('${country}')">✕</span>
+            </div>`);
+    });
+
+    selCommodities.forEach(com => {
+        const col = getComColor(com);
+        row.insertAdjacentHTML('beforeend', `
+            <div class="chip">
+                <span class="cdot" style="background:${col}"></span>
+                <span>${com}</span>
+                <span class="cx" onclick="removeCommodityChip('${com}')">✕</span>
+            </div>`);
+    });
+
+    selEngagementKeys.forEach(key => {
+        const cfg = ENG_CONFIG[key];
+        row.insertAdjacentHTML('beforeend', `
+            <div class="chip">
+                <span class="cdot" style="background:${cfg.color}"></span>
+                <span>${cfg.label}</span>
+                <span class="cx" onclick="removeEngChip('${key}')">✕</span>
+            </div>`);
+    });
+}
+
+function removeCountryChip(country) {
+    selCountries.delete(country);
+    const reg = REGION_TREE.find(r => r.countries.includes(country));
+    if (reg) updateRegionCheckbox(reg.id);
+    applyFilters();
+}
+
+function removeCommodityChip(com) { selCommodities.delete(com); applyFilters(); }
+function removeEngChip(key)       { selEngagementKeys.delete(key); applyFilters(); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   SELECT / DESELECT ALL
+═══════════════════════════════════════════════════════════════════ */
+function selectAllRegions()   { REGION_TREE.forEach(reg => reg.countries.forEach(c => selCountries.add(c))); applyFilters(); }
+function deselectAllRegions() { selCountries.clear(); applyFilters(); }
+function selectAllCom()       { document.querySelectorAll('.com-item').forEach(i => selCommodities.add(i.dataset.com)); applyFilters(); }
+function deselectAllCom()     { selCommodities.clear(); applyFilters(); }
+function selectAllEng()       { Object.keys(ENG_CONFIG).forEach(k => selEngagementKeys.add(k)); applyFilters(); }
+function deselectAllEng()     { selEngagementKeys.clear(); applyFilters(); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   FIT BOUNDS
+═══════════════════════════════════════════════════════════════════ */
+function fitToFiltered(projects) {
+    if (projects.length === 0 || projects.length === ALL_PROJECTS.length) return;
+    const lats = projects.map(p => p.lat);
+    const lngs = projects.map(p => p.lng);
+    map.fitBounds(
+        [[Math.min(...lats)-0.15, Math.min(...lngs)-0.15],
+         [Math.max(...lats)+0.15, Math.max(...lngs)+0.15]],
+        { padding:[40,40], maxZoom:10, animate:true, duration:0.9 }
+    );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RESET
+═══════════════════════════════════════════════════════════════════ */
+function resetFilters() {
+    selCountries.clear(); selCommodities.clear(); selEngagementKeys.clear();
+    document.getElementById('searchBox').value = '';
+    document.getElementById('clearSearch').style.display = 'none';
+    applyFilters();
+    map.setView([20, 15], 3, { animate:true, duration:0.9 });
+}
+
+/* ── Search wiring ── */
+document.getElementById('searchBox').addEventListener('input', function() {
+    document.getElementById('clearSearch').style.display = this.value ? 'block' : 'none';
+    applyFilters();
+});
+
+document.getElementById('clearSearch').addEventListener('click', function() {
+    document.getElementById('searchBox').value = '';
+    this.style.display = 'none';
+    applyFilters();
+});
+
+/* ── Boot ── */
+refreshData();
+setInterval(refreshData, 30_000);
+
+</script>
+</body>
+</html>
